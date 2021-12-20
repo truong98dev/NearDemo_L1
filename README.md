@@ -1,4 +1,4 @@
- Make own token
+# Make own token
 
 ### Deploy Contract
 ```sh
