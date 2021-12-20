@@ -1,102 +1,50 @@
-make_own_token
-==================
+# Make own token
 
-This [React] app was initialized with [create-near-app]
+### Deploy Contract
+```sh
+cargo build --all --target wasm32-unknown-unknown --release
+cp target/wasm32-unknown-unknown/release/*.wasm ./res/
+near dev-deploy --wasmFile res/make_own_token.wasm 
+export $ID
+```
 
+### Init contract (sale duration 10 minutes)
+```sh
+near call $ID new '{ \
+    "token_name": "TEST", \
+    "token_symbol": "TEST", \
+    "svg_icon": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 288 288'%3E%3Cg id='l' data-name='l'%3E%3Cpath d='M187.58,79.81l-30.1,44.69a3.2,3.2,0,0,0,4.75,4.2L191.86,103a1.2,1.2,0,0,1,2,.91v80.46a1.2,1.2,0,0,1-2.12.77L102.18,77.93A15.35,15.35,0,0,0,90.47,72.5H87.34A15.34,15.34,0,0,0,72,87.84V201.16A15.34,15.34,0,0,0,87.34,216.5h0a15.35,15.35,0,0,0,13.08-7.31l30.1-44.69a3.2,3.2,0,0,0-4.75-4.2L96.14,186a1.2,1.2,0,0,1-2-.91V104.61a1.2,1.2,0,0,1,2.12-.77l89.55,107.23a15.35,15.35,0,0,0,11.71,5.43h3.13A15.34,15.34,0,0,0,216,201.16V87.84A15.34,15.34,0,0,0,200.66,72.5h0A15.35,15.35,0,0,0,187.58,79.81Z'/%3E%3C/g%3E%3C/svg%3E", \
+    "token_decimals": 24, \
+    "total_supply": 1000000000000000, \
+    "sale_duration": 600000000000, \
+    "tokennomic": ["{"account_id": "CEO_token.testnet", "percent_of_token": 30}", "{"account_id": "CTO_token.testnet", "percent_of_token": 30}"], \
+    "price_type": "{"type": "FixedPrice", "near": "100000000000000000"}"}' --accountId $ID
+```
 
-Quick Start
-===========
+### Distribute token to Founder
+```sh
+near call $ID distribute_tokens \
+    '{}' \
+    --accountId $ID
+```
+### Get distribute status
+```sh
+near call $ID distributed_status '{}' --accountId $ID
+```
 
-To run this project locally:
+### Buy token 
+```sh
+near call $ID deposit_for_sale '{}' --accountId $ID --deposit 1
+```
 
-1. Prerequisites: Make sure you've installed [Node.js] ≥ 12
-2. Install dependencies: `npm install`
-3. Run the local development server: `npm run dev` (see `package.json` for a
-   full list of `scripts` you can run with `npm`)
+### Get my tokens
+```sh
+near call $ID my_tokens '{}' --accountId $ID
+```
 
-Now you'll have a local development environment backed by the NEAR TestNet!
+### Distribute tokens for buyers 
+```sh
+near call $ID distribute_tokens_to_buyers '{}' --accountId $ID
+```
 
-Go ahead and play with the app and the code. As you make code changes, the app will automatically reload.
-
-
-Exploring The Code
-==================
-
-1. The "backend" code lives in the `/contract` folder. See the README there for
-   more info.
-2. The frontend code lives in the `/src` folder. `/src/index.html` is a great
-   place to start exploring. Note that it loads in `/src/index.js`, where you
-   can learn how the frontend connects to the NEAR blockchain.
-3. Tests: there are different kinds of tests for the frontend and the smart
-   contract. See `contract/README` for info about how it's tested. The frontend
-   code gets tested with [jest]. You can run both of these at once with `npm
-   run test`.
-
-
-Deploy
-======
-
-Every smart contract in NEAR has its [own associated account][NEAR accounts]. When you run `npm run dev`, your smart contract gets deployed to the live NEAR TestNet with a throwaway account. When you're ready to make it permanent, here's how.
-
-
-Step 0: Install near-cli (optional)
--------------------------------------
-
-[near-cli] is a command line interface (CLI) for interacting with the NEAR blockchain. It was installed to the local `node_modules` folder when you ran `npm install`, but for best ergonomics you may want to install it globally:
-
-    npm install --global near-cli
-
-Or, if you'd rather use the locally-installed version, you can prefix all `near` commands with `npx`
-
-Ensure that it's installed with `near --version` (or `npx near --version`)
-
-
-Step 1: Create an account for the contract
-------------------------------------------
-
-Each account on NEAR can have at most one contract deployed to it. If you've already created an account such as `your-name.testnet`, you can deploy your contract to `make_own_token.your-name.testnet`. Assuming you've already created an account on [NEAR Wallet], here's how to create `make_own_token.your-name.testnet`:
-
-1. Authorize NEAR CLI, following the commands it gives you:
-
-      near login
-
-2. Create a subaccount (replace `YOUR-NAME` below with your actual account name):
-
-      near create-account make_own_token.YOUR-NAME.testnet --masterAccount YOUR-NAME.testnet
-
-
-Step 2: set contract name in code
----------------------------------
-
-Modify the line in `src/config.js` that sets the account name of the contract. Set it to the account id you used above.
-
-    const CONTRACT_NAME = process.env.CONTRACT_NAME || 'make_own_token.YOUR-NAME.testnet'
-
-
-Step 3: deploy!
----------------
-
-One command:
-
-    npm run deploy
-
-As you can see in `package.json`, this does two things:
-
-1. builds & deploys smart contract to NEAR TestNet
-2. builds & deploys frontend code to GitHub using [gh-pages]. This will only work if the project already has a repository set up on GitHub. Feel free to modify the `deploy` script in `package.json` to deploy elsewhere.
-
-
-Troubleshooting
-===============
-
-On Windows, if you're seeing an error containing `EPERM` it may be related to spaces in your path. Please see [this issue](https://github.com/zkat/npx/issues/209) for more details.
-
-
-  [React]: https://reactjs.org/
-  [create-near-app]: https://github.com/near/create-near-app
-  [Node.js]: https://nodejs.org/en/download/package-manager/
-  [jest]: https://jestjs.io/
-  [NEAR accounts]: https://docs.near.org/docs/concepts/account
-  [NEAR Wallet]: https://wallet.testnet.near.org/
-  [near-cli]: https://github.com/near/near-cli
-  [gh-pages]: https://github.com/tschaub/gh-pages
+### Check tokens balance in buyers wallet [gh-pages]: https://github.com/tschaub/gh-pages

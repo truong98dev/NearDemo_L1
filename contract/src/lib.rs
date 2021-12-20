@@ -7,7 +7,7 @@ use near_sdk::json_types::{WrappedBalance, WrappedDuration, ValidAccountId, U128
 use near_contract_standards::fungible_token::metadata::{FungibleTokenMetadata, FungibleTokenMetadataProvider, FT_METADATA_SPEC};
 use near_contract_standards::fungible_token::FungibleToken;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LazyOption, UnorderedMap, Vector};
+use near_sdk::collections::{LazyOption, UnorderedMap, UnorderedSet};
 use near_sdk::{env, log, near_bindgen, AccountId, Balance, PromiseOrValue, Timestamp, Duration, Gas, Promise, PromiseResult, PanicOnDefault};
 
 near_sdk::setup_alloc!();
@@ -15,6 +15,8 @@ near_sdk::setup_alloc!();
 use crate::internal::*;
 
 mod internal;
+
+const ONE_NEAR: Balance = 1_000_000_000_000_000_000_000_000;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(crate="near_sdk::serde")]
@@ -24,7 +26,7 @@ pub enum TokenPriceType {
     DynamicPrice { ratio: f64 }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[serde(crate="near_sdk::serde")]
 pub struct ShareHolder {
     account_id: ValidAccountId,
@@ -36,8 +38,10 @@ pub struct ShareHolder {
 pub struct Contract {
     owner_id: ValidAccountId,
     price_type: TokenPriceType,
-    tokennomic: Vector<ShareHolder>,
-    sale_duration: WrappedDuration,
+    tokennomic: UnorderedSet<ShareHolder>,
+    distributed_status: bool,
+    start_time: Duration,
+    sale_duration: Duration,
 
     token: FungibleToken,
     metadata: LazyOption<FungibleTokenMetadata>,
@@ -53,7 +57,7 @@ impl Contract {
         svg_icon: String,
         token_decimals: u8,
         total_supply: Balance,
-        sale_duration: WrappedDuration,
+        sale_duration: Duration,
         tokennomic: Vec<ShareHolder>,
         price_type: TokenPriceType 
     ) -> Self {
@@ -71,10 +75,13 @@ impl Contract {
             decimals: token_decimals
         };
 
+        let _owner_id = owner_id.clone();
         let mut this = Self {
-            owner_id,
+            owner_id: _owner_id,
+            distributed_status: false,
+            start_time: env::block_timestamp(), 
             price_type,
-            tokennomic: Vector::new(b"t".to_vec()),
+            tokennomic: UnorderedSet::new(b"t".to_vec()),
             sale_duration,
             token: FungibleToken::new(b"f".to_vec()),
             metadata: LazyOption::new(b"m".to_vec(), Some(&metadata)),
@@ -82,7 +89,7 @@ impl Contract {
         };
 
         for item in &tokennomic {
-            this.tokennomic.push(item);
+            this.tokennomic.insert(item);
         }
 
         this.token.internal_register_account(owner_id.as_ref());
@@ -90,35 +97,114 @@ impl Contract {
         this
     }
 
+    pub fn distribute_tokens(
+        &mut self
+    ) {
+        self.assert_owner();
+
+        for item in self.tokennomic.iter() {
+            let _internal_item = item.clone();
+            self.token.storage_deposit(Some(item.account_id), Some(true));
+            
+            let num_tokens = item.percent_of_token as u128 * self.token.total_supply;
+            self.token.ft_transfer(_internal_item.account_id, U128::try_from(num_tokens).unwrap(),  None);
+        }
+
+        self.distributed_status = true;
+    }
+
+    pub fn distributed_status(&self) -> bool {
+        return self.distributed_status;
+    }
+
     pub fn remaining_tokens(&self) -> Balance {
-        return 0
+        self.token.total_supply - self.sold_tokens() 
+    }
+
+    pub fn sold_tokens(&self) -> Balance {
+       let total: Balance =  self.whitelist_map
+                                .iter()
+                                .map(|(_, balance)| balance)
+                                .sum();
+        total
     }
 
     pub fn tokennomic(&self) -> Vec<ShareHolder> {
         self.tokennomic.to_vec()
     }
 
-    pub fn get_tokens_for_sale_percent(&self) -> u64 {
+    pub fn percent_for_sale(&self) -> f64 {
         let share_holder_total_percent: f64 = self.tokennomic
-            .map(item.percent)
+            .iter()
+            .map(|item| item.percent_of_token)
             .sum();
-        (100 - share_holder_total_percent) / 100 * self.token.total_supply
+        100 as f64 - share_holder_total_percent 
     }
 
     pub fn get_token_price(&self) -> Balance {
         return 0
     }
 
-    pub fn get_remaining_tokens(&self) -> Balance {
-        return 0
-    }
-
     pub fn whitelist(&self) -> Vec<(AccountId, Balance)> {
         self.whitelist_map
-            .collect()
+            .to_vec()
+    }
+    
+    pub fn price(&self) -> Balance {
+        match(self.price_type) {
+            TokenPriceType::FixedPrice { near } => near,
+            //Will add algorithm later
+            TokenPriceType::DynamicPrice { ratio } => return ONE_NEAR
+        }
     }
 
-  fn on_account_closed(&mut self, account_id: AccountId, balance: Balance) {
+    pub fn my_tokens(
+        &self,
+        account_id: ValidAccountId
+    ) -> Balance {
+        self.whitelist_map
+            .get(&account_id.to_string())
+            .unwrap_or(0)
+    }
+
+    #[payable]
+    pub fn deposit_for_sale(&mut self) -> bool {
+        let curr_time_stamp = env::block_timestamp();
+        assert!(
+            curr_time_stamp >= self.start_time && curr_time_stamp <= self.start_time + self.sale_duration,
+            "Not time for sale"
+        );
+
+        let amount = env::attached_deposit();
+
+        let num_tokens = amount / self.price();
+        let buyer = env::signer_account_id();
+
+        let current_tokens = self.whitelist_map.get(&buyer).unwrap_or(0);
+        self.whitelist_map.insert(&buyer, &(current_tokens + num_tokens));
+        true        
+    }
+   
+    #[payable] 
+    pub fn distribute_tokens_to_buyers(
+        &mut self
+    ) -> bool {
+        self.assert_owner();
+        
+        let curr_time_stamp = env::block_timestamp();
+        assert!(
+            curr_time_stamp > self.start_time + self.sale_duration,
+            "Not time for distribute"
+        );
+        
+        for (_account, _balance) in self.whitelist_map.iter() {
+            self.token.storage_deposit(Some(ValidAccountId::try_from(_account.clone()).unwrap()), Some(false));
+            self.token.ft_transfer(ValidAccountId::try_from(_account).unwrap(), U128::try_from(_balance).unwrap(), None);
+        }
+        true
+    }
+
+    fn on_account_closed(&mut self, account_id: AccountId, balance: Balance) {
         log!("Closed @{} with {}", account_id, balance);
     }
 
