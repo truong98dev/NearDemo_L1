@@ -64,10 +64,10 @@ impl Contract {
         total_supply: Balance,
         sale_duration: Duration,
         tokennomic: Vec<ShareHolder>,
-        price_type: TokenPriceType 
+        price_type: TokenPriceType
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
-        
+
         let owner_id = ValidAccountId::try_from(env::predecessor_account_id().clone()).unwrap();
 
         let metadata = FungibleTokenMetadata {
@@ -84,7 +84,7 @@ impl Contract {
         let mut this = Self {
             owner_id: _owner_id,
             distributed_status: false,
-            start_time: env::block_timestamp(), 
+            start_time: env::block_timestamp(),
             price_type,
             tokennomic: UnorderedSet::new(b"t".to_vec()),
             sale_duration,
@@ -110,9 +110,9 @@ impl Contract {
 
         for item in self.tokennomic.iter() {
             let _internal_item = item.clone();
-// self.token.storage_deposit(Some(item.account_id), Some(true));
-            self.token.internal_register_account(item.account_id.as_ref());
-            
+            self.token.storage_deposit(Some(item.account_id), Some(true));
+// self.token.internal_register_account(item.account_id.as_ref());
+
             let num_tokens = item.percent_of_token as u128 * self.token.total_supply / 100;
             self.token.ft_transfer(_internal_item.account_id, U128::try_from(num_tokens).unwrap(),  None);
         }
@@ -125,7 +125,7 @@ impl Contract {
     }
 
     pub fn remaining_tokens(&self) -> Balance {
-        self.token.total_supply * self.percent_for_sale() as u128 - self.sold_tokens()  
+        self.token.total_supply * self.percent_for_sale() as u128 - self.sold_tokens()
     }
 
     pub fn sold_tokens(&self) -> Balance {
@@ -145,7 +145,7 @@ impl Contract {
             .iter()
             .map(|item| item.percent_of_token)
             .sum();
-        100 as f64 - share_holder_total_percent 
+        100 as f64 - share_holder_total_percent
     }
 
     pub fn get_token_price(&self) -> Balance {
@@ -156,7 +156,7 @@ impl Contract {
         self.whitelist_map
             .to_vec()
     }
-    
+
     pub fn price(&self) -> Balance {
         match self.price_type {
             TokenPriceType::FixedPrice { near } => (near as u128 * ONE_NEAR),
@@ -189,21 +189,23 @@ impl Contract {
 
         let current_tokens = self.whitelist_map.get(&buyer).unwrap_or(0);
         self.whitelist_map.insert(&buyer, &(current_tokens + num_tokens));
-        true        
+        true
     }
-   
-    #[payable] 
+
+    #[payable]
     pub fn distribute_tokens_to_buyers(
         &mut self
     ) -> bool {
         self.assert_owner();
-        
+
         let curr_time_stamp = env::block_timestamp();
         assert!(
             curr_time_stamp > self.start_time + self.sale_duration,
             "Not time for distribute"
         );
-        
+
+// env::log(format!("Log time {:?} {:?}", curr_time_stamp, (self.start_time + self.sale_duration)));
+
         for (_account, _balance) in self.whitelist_map.iter() {
 // self.token.storage_deposit(Some(ValidAccountId::try_from(_account.clone()).unwrap()), Some(false));
 
