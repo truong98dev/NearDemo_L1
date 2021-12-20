@@ -47,4 +47,4 @@ near call $ID my_tokens '{}' --accountId $ID
 near call $ID distribute_tokens_to_buyers '{}' --accountId $ID
 ```
 
-### Check tokens balance in buyers wallet [gh-pages]: https://github.com/tschaub/gh-pages
+### Check tokens balance in buyers wallet 
