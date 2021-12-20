@@ -215,15 +215,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "greeter"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "near-contract-standards",
- "near-sdk",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -280,6 +271,15 @@ name = "libc"
 version = "0.2.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd7d4bd64732af4bf3a67f367c27df8520ad7e230c5817b8ff485864d80242b9"
+
+[[package]]
+name = "make_own_token"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "near-contract-standards",
+ "near-sdk",
+]
 
 [[package]]
 name = "memchr"

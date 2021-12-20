@@ -1,0 +1,1 @@
+/Users/trietnguyen/Documents/Blockchain\ Development/NEAR_DEC/make_own_token/contract/target/wasm32-unknown-unknown/release/libmake_own_token.rlib: /Users/trietnguyen/Documents/Blockchain\ Development/NEAR_DEC/make_own_token/contract/src/internal.rs /Users/trietnguyen/Documents/Blockchain\ Development/NEAR_DEC/make_own_token/contract/src/lib.rs

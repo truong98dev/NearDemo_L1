@@ -22,7 +22,7 @@ const ONE_NEAR: Balance = 1_000_000_000_000_000_000_000_000;
 #[serde(crate="near_sdk::serde")]
 #[serde(tag="type")]
 pub enum TokenPriceType {
-    FixedPrice { near: Balance },
+    FixedPrice { near: u8 },
     DynamicPrice { ratio: f64 }
 }
 
@@ -46,6 +46,11 @@ pub struct Contract {
     token: FungibleToken,
     metadata: LazyOption<FungibleTokenMetadata>,
     whitelist_map: UnorderedMap<AccountId, Balance>
+}
+
+impl Default for Contract {
+    fn default() -> Self {
+     env::panic(b"Contract should be initialized before usage");}
 }
 
 #[near_bindgen]
@@ -97,6 +102,7 @@ impl Contract {
         this
     }
 
+    #[payable]
     pub fn distribute_tokens(
         &mut self
     ) {
@@ -104,9 +110,10 @@ impl Contract {
 
         for item in self.tokennomic.iter() {
             let _internal_item = item.clone();
-            self.token.storage_deposit(Some(item.account_id), Some(true));
+// self.token.storage_deposit(Some(item.account_id), Some(true));
+            self.token.internal_register_account(item.account_id.as_ref());
             
-            let num_tokens = item.percent_of_token as u128 * self.token.total_supply;
+            let num_tokens = item.percent_of_token as u128 * self.token.total_supply / 100;
             self.token.ft_transfer(_internal_item.account_id, U128::try_from(num_tokens).unwrap(),  None);
         }
 
@@ -118,7 +125,7 @@ impl Contract {
     }
 
     pub fn remaining_tokens(&self) -> Balance {
-        self.token.total_supply - self.sold_tokens() 
+        self.token.total_supply * self.percent_for_sale() as u128 - self.sold_tokens()  
     }
 
     pub fn sold_tokens(&self) -> Balance {
@@ -151,8 +158,8 @@ impl Contract {
     }
     
     pub fn price(&self) -> Balance {
-        match(self.price_type) {
-            TokenPriceType::FixedPrice { near } => near,
+        match self.price_type {
+            TokenPriceType::FixedPrice { near } => (near as u128 * ONE_NEAR),
             //Will add algorithm later
             TokenPriceType::DynamicPrice { ratio } => return ONE_NEAR
         }
@@ -198,7 +205,9 @@ impl Contract {
         );
         
         for (_account, _balance) in self.whitelist_map.iter() {
-            self.token.storage_deposit(Some(ValidAccountId::try_from(_account.clone()).unwrap()), Some(false));
+// self.token.storage_deposit(Some(ValidAccountId::try_from(_account.clone()).unwrap()), Some(false));
+
+            self.token.internal_register_account(&_account);
             self.token.ft_transfer(ValidAccountId::try_from(_account).unwrap(), U128::try_from(_balance).unwrap(), None);
         }
         true
